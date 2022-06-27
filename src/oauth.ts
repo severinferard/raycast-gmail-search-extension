@@ -1,13 +1,12 @@
 import { OAuth, showToast, Toast } from "@raycast/api";
 import fetch from "node-fetch";
-import { json } from "stream/consumers";
 
 // Create an OAuth client ID via https://console.developers.google.com/apis/credentials
 // As application type choose "iOS" (required for PKCE)
 // As Bundle ID enter: com.raycast
 const clientId = "785335863573-k3hu4b0jisu4jhs3c2qknlri5ettm6s4.apps.googleusercontent.com";
 
-const client = new OAuth.PKCEClient({
+export const client = new OAuth.PKCEClient({
   redirectMethod: OAuth.RedirectMethod.AppURI,
   providerName: "Google",
   providerIcon: "gmail-logo.png",
@@ -81,103 +80,7 @@ async function refreshTokens(refreshToken: string): Promise<OAuth.TokenResponse 
   return tokenResponse;
 }
 
-// API
 
-export interface SearchResult {
-  id: string;
-  threadId: string;
-}
 
-interface Attachment {
-  mimeType: string;
-  filename: string;
-  size: number;
-}
 
-export interface Message {
-  isLoaded: boolean;
-  id: string;
-  snippet?: string;
-  recievedDate?: Date;
-  subject?: string;
-  from?: string;
-  to?: string;
-  attachments?: Attachment[];
-}
 
-interface APIMessagePart {
-  partId: string;
-  mimeType: string;
-  filename: string;
-  headers: [
-    {
-      name: string;
-      value: string;
-    }
-  ];
-  body: {
-    attachmentId: string;
-    size: number;
-    data: string;
-  };
-  parts: [APIMessagePart];
-}
-
-interface APIMessageResponse {
-  id: string;
-  threadId: string;
-  labelIds: [string];
-  snippet: string;
-  historyId: string;
-  internalDate: string;
-  payload: APIMessagePart;
-  sizeEstimate: number;
-  raw: string;
-}
-
-export async function searchMails(query: string): Promise<SearchResult[]> {
-  const params = new URLSearchParams();
-  params.append("q", query);
-  const response = await fetch("https://www.googleapis.com/gmail/v1/users/me/messages?" + params.toString(), {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${(await client.getTokens())?.accessToken}`,
-    },
-  });
-
-  let json = await response.json();
-  if (response.ok) {
-    let { messages } = json as { messages: { id: string; threadId: string }[] };
-    return messages === undefined ? [] : messages;
-  }
-
-  showToast({
-    style: Toast.Style.Failure,
-    title: "Gmail Response Error",
-    message: (json as { error: { message: string } }).error.message,
-  });
-  return [];
-}
-
-export async function getMessage(id: string): Promise<Message> {
-  const response = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/" + id, {
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${(await client.getTokens())?.accessToken}`,
-    },
-  });
-  let json = (await response.json()) as APIMessageResponse;
-  const message: Message = {
-    isLoaded: true,
-    id: json.id,
-    snippet: json.snippet,
-    recievedDate: new Date(json.payload.headers.find((e) => e.name === "Date")?.value!),
-    subject: json.payload.headers.find((e) => e.name === "Subject")?.value,
-    to: json.payload.headers.find((e) => e.name === "To")?.value,
-    from: json.payload.headers.find((e) => e.name === "From")?.value,
-    attachments: json.payload.parts
-      ?.filter((part) => part.filename)
-      .map((part) => ({ filename: part.filename, mimeType: part.mimeType, size: part.body.size })),
-  };
-  return message;
-}

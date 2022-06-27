@@ -9,7 +9,7 @@
   "commands": [
     {
       "name": "index",
-      "title": "Gmail search",
+      "title": "Gmail Search",
       "description": "",
       "mode": "view"
     }
